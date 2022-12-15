@@ -10,15 +10,14 @@ import json
 #!SECTION prepare the Blockchain
 from Transaction import Transaction
 from Wallet import Wallet
-from Block import Block
 from BlockChain import BlockChain
 from utility.node_register import register_node
 #!SECTION prepare the Blockchain
 
 # NOTE: when running in k8s deployment mode , this port will be stabilized
 NODE_MANAGER = "http://localhost:6000"
-NODE_PORT = 5000
-# NODE_PORT = generate_random_port()
+# NODE_PORT = 5000
+NODE_PORT = generate_random_port()
 NODE_HOST = get_local_ip_address()
 # NOTE: Registering node REST API here
 app = Flask(__name__)
@@ -183,9 +182,9 @@ def create_transaction():
         return jsonify(api_return), 400
 
     # starting building the new transaction record,by calling the blockchain build-in api,which will performs all necessary check
-    add_status = BLOCK_CHAIN.create_transaction(
+    created_transaction = BLOCK_CHAIN.create_transaction(
         sender_wallet, recipient_wallet, amount, sender_privatekey)
-    if add_status != True:
+    if created_transaction == False:
         api_return = {
             "message": "Transaction rejected ...",
         }
@@ -193,6 +192,8 @@ def create_transaction():
 
     api_return = {
         "message": "Transaction add successfully ...",
+        "transaction": created_transaction.to_json()
+
     }
     #!SECTION BroadCast this transaction..
     return jsonify(api_return), 200
@@ -240,6 +241,64 @@ def mine():
     api_return = {
         "message": "New  create successfully ...",
         "block": mined_block.to_json()
+    }
+    #!SECTION BroadCast this transaction..
+    return jsonify(api_return), 200
+
+
+@app.route("/broadcast-transaction", methods=["POST"])
+def broadcast_transaction_handler():
+    """
+    #Rule - :
+        {
+            "sender":"RSA key address",
+            "recipient":"RSA key address",
+            "amount": 1.3,
+            "signature":"sender_wallet's signature"
+        }
+
+        #Rule:
+            1. all check will be delegated to add_transaction_from_broadcast
+        #FIXME - 
+            1. this will be failed when our block chain is outdated, which means we should have a logic to handle the data conflict
+            2. this should also handle the RSA verification
+    """
+    try:
+        transaction_payload = request.get_json()
+        sender_wallet = transaction_payload["sender"]
+        recipient_wallet = transaction_payload["recipient"]
+        amount = transaction_payload["amount"]
+        signature = transaction_payload["signature"]
+    except:
+        api_return = {
+            "message": "invalid  request payload",
+        }
+        return jsonify(api_return), 400
+
+    # starting building the new transaction record,by calling the blockchain build-in api,which will performs all necessary check
+    broadcast_transaction = Transaction(
+        sender_wallet, recipient_wallet, amount, signature)
+    transaction_generic_check = broadcast_transaction.validate_self()
+    if not transaction_generic_check:
+        api_return = {
+            "message": "Broadcast Transaction rejected (since transaction_generic_check failed)...",
+        }
+        return jsonify(api_return), 500
+
+    # Rule - balance checking
+    # FIXME - our blockchain might be out of sync with other blockchain
+    broadcast_transaction_status = BLOCK_CHAIN.add_transaction_from_broadcast(
+        sender_wallet, recipient_wallet, amount, signature)
+
+    if broadcast_transaction_status == False:
+        api_return = {
+            "message": "Broadcast Transaction rejected ... ( This also possible because of current node is out of sync with in-coming node )",
+        }
+        return jsonify(api_return), 500
+
+    api_return = {
+        "message": "Broadcast Transaction added successfully ...",
+        "added_transactions": broadcast_transaction_status.to_json()
     }
     #!SECTION BroadCast this transaction..
     return jsonify(api_return), 200

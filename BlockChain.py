@@ -195,7 +195,7 @@ class BlockChain():
         # NOTE - save the transaction record from the broadcast
         self.__open_transactions.append(broadcast_transaction)
         self.save_open_transaction()
-        return True
+        return broadcast_transaction
 
     def create_transaction(self, sender_wallet: str, recipient_wallet: str, amount: float, sender_privatekey: str):
         """
@@ -235,7 +235,7 @@ class BlockChain():
         print("Create new Transaction successfully")
         self.__open_transactions.append(transaction)
         self.save_open_transaction()
-        return True
+        return transaction
     # SECTION - Mining Logic
 
     # PoW helper

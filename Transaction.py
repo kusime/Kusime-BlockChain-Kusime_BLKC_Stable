@@ -35,6 +35,9 @@ class Transaction(SuperOBJ):
         # TODO - 1. add timestamp to indicate the transaction created time
         self.signature = signature
 
+    def to_json(self):
+        return self.__dict__.copy()
+
     def to_string(self):
         """
             NOTE : this function will use to the 
