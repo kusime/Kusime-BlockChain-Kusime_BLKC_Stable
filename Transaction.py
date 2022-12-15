@@ -32,6 +32,7 @@ class Transaction(SuperOBJ):
         self.recipient = recipient
         # NOTE : the outside should not be take care of the amount type but the Inner initialize will take care of it
         self.amount = float(amount)
+        # TODO - 1. add timestamp to indicate the transaction created time
         self.signature = signature
 
     def to_string(self):

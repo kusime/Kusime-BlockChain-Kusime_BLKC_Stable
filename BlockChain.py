@@ -52,13 +52,6 @@ class BlockChain():
             self.__open_transactions = value
         pass
 
-    # Rule: all inner modification should call this function
-    def __update_chain(self, value):
-        self.__chain = value
-
-    def __update_open_transaction(self, value):
-        self.__open_transactions = value
-
     # SECTION - Database Saver section
 
     def save_blockchain(self):
@@ -339,7 +332,7 @@ class BlockChain():
         return newly_mined_block
 
     # TODO: Implement the BroadCast RSA checking
-    def add_block_from_broadcast(self, previous_block_hash: str, index: int, data: list, proof: int, timestamp: float):
+    def add_block_from_broadcast(self, previous_block_hash: str, index: int, data_json: list, proof: int, timestamp: float):
         """
             Rule:
                 previous_block_hash: The previous block hash which should be our current block hash.
@@ -358,11 +351,11 @@ class BlockChain():
             index = int(index)
             proof = int(proof)
             # Rule: preprocess the block payload
-            data = [Transaction(
+            data_json = [Transaction(
                 tx["sender"], tx["recipient"], tx["amount"],
-                tx["signature"]) for tx in data]
+                tx["signature"]) for tx in data_json]
             # Rule: Check All Transaction including the MINE_SYSTEM reward
-            if not all([tx.validate_self() for tx in data]):
+            if not all([tx.validate_self() for tx in data_json]):
                 # Rule: this operation also checks the MINE_SYSTEM signature
                 print("This block was containing invalid transaction, rejected")
                 return False
@@ -371,7 +364,7 @@ class BlockChain():
             return False
 
         broadcast_block = Block(previous_block_hash,
-                                index, data, proof, timestamp)
+                                index, data_json, proof, timestamp)
         print("Preprocessing block finished,start validating New Block...")
         our_latest_block = self.get_the_last_block()
 

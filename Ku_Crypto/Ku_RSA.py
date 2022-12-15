@@ -100,7 +100,7 @@ if __name__ == "__main__":
             self.payload = 1
             self.payload2 = 2
 
-        def to_string(self):
+        def to_json(self):
             # override the to string method
             return str(self.payload) + str(self.payload2)
     private_key, public_key = Ku_RSA._generate_RSA_keys()

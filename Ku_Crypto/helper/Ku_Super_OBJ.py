@@ -13,7 +13,7 @@ class SuperOBJ:
         """
         return str(self.__dict__)
 
-    def to_string(self):
+    def to_json(self):
         # the OBJ can be stringify
         pass
 

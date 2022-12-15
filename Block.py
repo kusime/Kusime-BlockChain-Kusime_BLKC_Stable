@@ -51,6 +51,13 @@ class Block(SuperOBJ):
                                       for tx in serializable_block["data"]]
         return (sha256(json.dumps(serializable_block, sort_keys=True).encode("utf-8"))).hexdigest()
 
+    def to_json(self):
+        serializable_block = self.__dict__.copy()
+        # the tx is Transaction instance , by calling the to_order method to transforming to the ordered form
+        serializable_block["data"] = [tx.__dict__.copy()
+                                      for tx in serializable_block["data"]]
+        return serializable_block
+
 
 if __name__ == "__main__":
     tx = Transaction("Alice", "Bob", "100", "abc123")
