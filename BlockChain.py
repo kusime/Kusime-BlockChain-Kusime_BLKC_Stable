@@ -374,7 +374,8 @@ class BlockChain():
             # FIXME: not the best solution, but seems to work
             # at the data field , we check if the miner's signature is the same as the broadcast block, if yes, which means this block is also created by that miner , and already added into our block chain
             # NOTE: and since the miner's reward block will always be the last one
-            return True
+            print("Already added into block chain")
+            return False
 
         # Rule: validate the previous hash
         print("BroadCast Block seems to be new block .. now performing the checking")
@@ -395,7 +396,7 @@ class BlockChain():
         self.__chain.append(broadcast_block)
         # Rule - clear the open transactions (clear the pending pool)
         self.save_blockchain()
-        return True
+        return broadcast_block
 
     # SECTION - validate the chain logic
 

@@ -11,14 +11,17 @@ import json
 from Transaction import Transaction
 from Wallet import Wallet
 from BlockChain import BlockChain
+from utility.node_broadcast import node_broadcast
 from utility.node_register import register_node
 #!SECTION prepare the Blockchain
 
 # NOTE: when running in k8s deployment mode , this port will be stabilized
 NODE_MANAGER = "http://localhost:6000"
+BROADCAST_MANAGER = "http://localhost:7000"
 # NODE_PORT = 5000
 NODE_PORT = generate_random_port()
 NODE_HOST = get_local_ip_address()
+NODE_ID = "{}:{}".format(NODE_HOST, NODE_PORT)
 # NOTE: Registering node REST API here
 app = Flask(__name__)
 CORS(app)
@@ -196,6 +199,8 @@ def create_transaction():
 
     }
     #!SECTION BroadCast this transaction..
+    node_broadcast(BROADCAST_MANAGER, NODE_ID, "transaction",
+                   created_transaction.to_json())
     return jsonify(api_return), 200
 
 
@@ -243,6 +248,8 @@ def mine():
         "block": mined_block.to_json()
     }
     #!SECTION BroadCast this transaction..
+    node_broadcast(BROADCAST_MANAGER, NODE_ID, "block",
+                   mined_block.to_json())
     return jsonify(api_return), 200
 
 
@@ -264,7 +271,7 @@ def broadcast_transaction_handler():
             2. this should also handle the RSA verification
     """
     try:
-        transaction_payload = request.get_json()
+        transaction_payload = request.get_json()["payload"]
         sender_wallet = transaction_payload["sender"]
         recipient_wallet = transaction_payload["recipient"]
         amount = transaction_payload["amount"]
@@ -299,6 +306,63 @@ def broadcast_transaction_handler():
     api_return = {
         "message": "Broadcast Transaction added successfully ...",
         "added_transactions": broadcast_transaction_status.to_json()
+    }
+
+    return jsonify(api_return), 200
+
+
+@app.route("/broadcast-block", methods=["POST"])
+def broadcast_block_handler():
+    """
+    #Rule - :
+    {
+        "data": [
+            {
+                "amount": 10.0,
+                "recipient": "30819f300d06092a864886f70d010101050003818d0030818902818100a535ee8b2e63677271fee7cca8206fce04588677f21b86b5302a6e0526430540bcf0c7488d7e88a66a6dc8feb9226985089d641d8dd1e000b4f4175350b462138c3fef5bffc0840bda87130e544d56307712a8b30fdeb27f7ebe093e37fcd68007849df9f0b82454f75dfb958726708de32ac503183604d020cf8548d4b05cbf0203010001",
+                "sender": "30819f300d06092a864886f70d010101050003818d0030818902818100c8501b7d73404a8f101cf011827d261662ee9b17195f0b297da79604114c48fa3f161cb13d8e039ceefdfb03cb559bcef332c6a3713d74d04b948e363019b1472265ef92efeb3ea6ee91ad585369fdf8e155582756e93ccf8bef9ef8062ed2535d52af1e6f11cd03e1a34e98436b278afab544c3cf28c0aa8e27af2ddd8b19030203010001",
+                "signature": "0df22f492457d5444dc78236a0eaa34d34c938596ca8c23107f7626620d776e957b9831fd4a457a2f74e9023ff3dc8d4b2667ff0336a552099adaeaca41af313edcafd961ff3d56f243adb0c60e92f8076406d1250dbe53e09794254766c14142a46362900b773ee9fac2b820d6a1c26eed62ba14fcc82040a2240de0a850b07"
+            }
+        ],
+        "index": 2,
+        "previous_block_hash": "d5e6a130a61f8cd82591102dff7c08b4fb03f5bd45c7341338c9dd25f0b4503e",
+        "proof": 103,
+        "timestamp": 1671089939.4542882
+    }
+
+        #Rule:
+            1. all check will be delegated to add_block_from_broadcast
+        #FIXME - 
+            1. this will be failed when our block chain already contains this block
+            2. this should also handle the NODE RSA verification
+    """
+    try:
+        block_payload = request.get_json()["payload"]
+        data_json = list(block_payload["data"])
+        index = int(block_payload["index"])
+        previous_block_hash = block_payload["previous_block_hash"]
+        proof = int(block_payload["proof"])
+        timestamp = float(block_payload["timestamp"])
+    except:
+        api_return = {
+            "message": "invalid  request payload",
+        }
+        return jsonify(api_return), 400
+
+    # Rule - balance checking
+    # FIXME - our blockchain might be out of sync with other blockchain
+    broadcast_block_status = BLOCK_CHAIN.add_block_from_broadcast(
+        previous_block_hash, index, data_json, proof, timestamp)
+
+    if broadcast_block_status == False:
+        api_return = {
+            "message": "Broadcast Block rejected ... ( This also possible because of that is block is already added)",
+        }
+        return jsonify(api_return), 500
+
+    api_return = {
+        "message": "Broadcast Block added successfully ...",
+        "added_block": broadcast_block_status.to_json()
     }
     #!SECTION BroadCast this transaction..
     return jsonify(api_return), 200
