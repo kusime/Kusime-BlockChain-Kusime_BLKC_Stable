@@ -8,7 +8,6 @@ from utility.ip import *
 # parse the request and response
 import json
 #!SECTION prepare the Blockchain
-from Transaction import Transaction
 from Wallet import Wallet
 from BlockChain import BlockChain
 from utility.node_broadcast import node_broadcast
@@ -28,7 +27,7 @@ CORS(app)
 # NOTE: Prepare the this node RSA key pair for node communication
 NODE_PRIVATE_KEY, NODE_PUBLIC_KEY = Wallet.generate_wallet()
 # NOTE: Prepare the BlockChain
-BLOCK_CHAIN = BlockChain()
+BLOCK_CHAIN = BlockChain(NODE_ID)
 
 
 @app.route('/alive', methods=["GET", "POST"])
@@ -274,7 +273,8 @@ def broadcast_transaction_handler():
         transaction_payload = request.get_json()["payload"]
         sender_wallet = transaction_payload["sender"]
         recipient_wallet = transaction_payload["recipient"]
-        amount = transaction_payload["amount"]
+        amount = float(transaction_payload["amount"])
+        timestamp = float(transaction_payload["timestamp"])
         signature = transaction_payload["signature"]
     except:
         api_return = {
@@ -282,20 +282,12 @@ def broadcast_transaction_handler():
         }
         return jsonify(api_return), 400
 
-    # starting building the new transaction record,by calling the blockchain build-in api,which will performs all necessary check
-    broadcast_transaction = Transaction(
-        sender_wallet, recipient_wallet, amount, signature)
-    transaction_generic_check = broadcast_transaction.validate_self()
-    if not transaction_generic_check:
-        api_return = {
-            "message": "Broadcast Transaction rejected (since transaction_generic_check failed)...",
-        }
-        return jsonify(api_return), 500
+    # REVIEW - check if already have this transaction in our open_transactions pool
 
     # Rule - balance checking
     # FIXME - our blockchain might be out of sync with other blockchain
     broadcast_transaction_status = BLOCK_CHAIN.add_transaction_from_broadcast(
-        sender_wallet, recipient_wallet, amount, signature)
+        sender_wallet, recipient_wallet, amount, timestamp, signature)
 
     if broadcast_transaction_status == False:
         api_return = {

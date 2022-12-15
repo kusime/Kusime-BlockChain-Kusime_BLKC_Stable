@@ -8,12 +8,12 @@ from Block import Block
 from Transaction import Transaction
 # NOTE: Initialize the Blockchain Rule
 from Ku_Rule import *
-# GENESIS_BLOCK
-GENESIS_BLOCK = Block("GENESIS_BLOCK", 0, [], 0)
+# GENESIS_BLOCK, this block must have the same number of all field so that the hash check will work
+GENESIS_BLOCK = Block("GENESIS_BLOCK", 0, [], 0, 0)
 
 
 class BlockChain():
-    def __init__(self) -> None:
+    def __init__(self, NODE_ID: str) -> None:
         self.__is_initialized = True
         # NOTE: setting the initialize BlockChain state
         self.chain = [GENESIS_BLOCK]
@@ -21,6 +21,9 @@ class BlockChain():
         # NOTE: locking the chain after initialize
         self.__is_initialized = False
         # NOTE - Try Loading the chain
+        self.NODE_ID = NODE_ID
+        self.DB_CHAIN = f'{DATABASE_BLOCKCHAIN}|{self.NODE_ID}'
+        self.DB_TRAN = f'{DATABASE_OPEN_TRANSACTION}|{self.NODE_ID}'
         self.load_blockchain()
     # SECTION - Protection of the BlockChain prevent modifications from node directly accessing
 
@@ -60,7 +63,7 @@ class BlockChain():
                 dumps the blockchain to disk
         """
         try:
-            with open(DATABASE_BLOCKCHAIN, "w") as blkc:
+            with open(self.DB_CHAIN, "w") as blkc:
                 # object to json
                 saveable_chain = [block.__dict__.copy()
                                   for block in self.__chain]
@@ -77,7 +80,7 @@ class BlockChain():
                 dumps the blockchain to disk
         """
         try:
-            with open(DATABASE_OPEN_TRANSACTION, "w") as blkc:
+            with open(self.DB_TRAN, "w") as blkc:
                 # object to json
                 saveable_open_transactions = [
                     tx.__dict__ for tx in self.__open_transactions]
@@ -88,11 +91,11 @@ class BlockChain():
 
     def load_blockchain(self):
         try:
-            with open(DATABASE_BLOCKCHAIN, "r") as blkc:
+            with open(self.DB_CHAIN, "r") as blkc:
                 blockchain = json.loads(blkc.readline())
                 # Rule: - Preprocessing the Database Record
                 self.__chain = [Block(block['previous_block_hash'], block["index"], [Transaction(
-                    tx["sender"], tx["recipient"], tx["amount"],
+                    tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
                     tx["signature"]) for tx in block['data']], block["proof"], block["timestamp"]) for block in blockchain]
                 # NOTE: validate the chain
                 # print(self.__chain)
@@ -117,12 +120,12 @@ class BlockChain():
             print("Block loading complete")
 
     def __load_open_transactions(self):
-        with open(DATABASE_OPEN_TRANSACTION, "r") as blkc:
+        with open(self.DB_TRAN, "r") as blkc:
             line = blkc.readline()
             # print("Loading open transaction =>", line)
             open_transactions = json.loads(line)
             self.__open_transactions = [Transaction(
-                tx["sender"], tx["recipient"], tx["amount"],
+                tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
                 tx["signature"]) for tx in open_transactions]
             # NOTE: validate the transaction using the self validate
             if not all([tx.validate_self() for tx in self.__open_transactions]):
@@ -167,7 +170,7 @@ class BlockChain():
             lambda sum, curr: sum + curr[0] if curr != [] else sum, tx_in, 0)
         return tx_in_amount - tx_out_amount
 
-    def add_transaction_from_broadcast(self, sender_wallet: str, recipient_wallet: str, amount: float, signature: str):
+    def add_transaction_from_broadcast(self, sender_wallet: str, recipient_wallet: str, amount: float, timestamp: float, signature: str):
         # Rule:
         #      if signature != None means that the transaction likely from broadcast, so we need to performs the signature
         amount = float(amount)
@@ -177,7 +180,8 @@ class BlockChain():
             return False
 
         broadcast_transaction = Transaction(
-            sender_wallet, recipient_wallet, amount, signature)
+            sender_wallet, recipient_wallet, amount, timestamp, signature)
+
         if not broadcast_transaction.validate_self():
             print("Transaction's signature verification failed")
             return False
@@ -191,6 +195,14 @@ class BlockChain():
             # FIXME - Maybe current blockchain is out date..
             #!SECTION 1. performs the conflict resource
             return False
+        # Rule : check if this broadcast transaction is already in our pool
+        if any([tx == broadcast_transaction for tx in self.open_transaction]):
+            print(
+                "BroadCast Transaction add failed ,this transaction is already in our pool")
+            # FIXME - Maybe current blockchain is out date..
+            #!SECTION 1. performs the conflict resource
+            return False
+
         print("Add BroadCast  Transaction successfully")
         # NOTE - save the transaction record from the broadcast
         self.__open_transactions.append(broadcast_transaction)
@@ -352,7 +364,7 @@ class BlockChain():
             proof = int(proof)
             # Rule: preprocess the block payload
             data_json = [Transaction(
-                tx["sender"], tx["recipient"], tx["amount"],
+                tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
                 tx["signature"]) for tx in data_json]
             # Rule: Check All Transaction including the MINE_SYSTEM reward
             if not all([tx.validate_self() for tx in data_json]):

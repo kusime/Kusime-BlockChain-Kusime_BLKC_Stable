@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from Ku_Crypto.helper.Ku_Super_OBJ import SuperOBJ
 from Wallet import Wallet
+from time import time
 # NOTE: Initialize the Blockchain Rule
 from Ku_Rule import *
 """
@@ -23,17 +24,30 @@ class Transaction(SuperOBJ):
             sender : sender wallet address
             recipient : recipient wallet address
             amount : amount of this transaction
+            timestamp : the time that create this transaction (optional . default is current time)
             # NOTE: since signature generation is only can be generate form the private key, we cannot generate that signature during create transaction object
             signature : the signature of this transaction
     """
 
-    def __init__(self, sender: str, recipient: str, amount: str, signature: str = None):
+    def __init__(self, sender: str, recipient: str, amount: str, timestamp: float = None, signature: str = None):
         self.sender = sender
         self.recipient = recipient
         # NOTE : the outside should not be take care of the amount type but the Inner initialize will take care of it
         self.amount = float(amount)
         # TODO - 1. add timestamp to indicate the transaction created time
+        if timestamp != None:
+            self.timestamp = timestamp
+        else:
+            self.timestamp = time()
         self.signature = signature
+
+    def __eq__(self, other):
+        # avoid this instance override the block == False error
+        if isinstance(other, Transaction):
+            # this will use to the broadcast compare
+            return self.sender == other.sender and self.amount == other.amount and self.timestamp == other.timestamp and self.signature == other.signature
+        else:
+            return other
 
     def to_json(self):
         return self.__dict__.copy()
@@ -44,7 +58,7 @@ class Transaction(SuperOBJ):
                 1. generate the signature
                 2. validate the signature
         """
-        return str(self.sender) + str(self.recipient) + str(self.amount)
+        return str(self.sender) + str(self.recipient) + str(self.amount) + str(self.timestamp)
 
     def to_order(self):
         """
@@ -53,7 +67,7 @@ class Transaction(SuperOBJ):
                     and we need to make sure the order of the transaction cannot change
         """
         return OrderedDict(
-            [("sender", self.sender), ("recipient", self.recipient), ("amount", self.amount)])
+            [("sender", self.sender), ("recipient", self.recipient), ("amount", self.amount), ("timestamp", self.timestamp)])
 
     def sign_self(self, wallet_private_key: str):
         """
