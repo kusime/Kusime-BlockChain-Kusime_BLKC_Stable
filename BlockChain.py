@@ -93,10 +93,12 @@ class BlockChain():
         try:
             with open(self.DB_CHAIN, "r") as blkc:
                 blockchain = json.loads(blkc.readline())
+                # EFFECT: - Transaction record
                 # Rule: - Preprocessing the Database Record
-                self.__chain = [Block(block['previous_block_hash'], block["index"], [Transaction(
-                    tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
-                    tx["signature"]) for tx in block['data']], block["proof"], block["timestamp"]) for block in blockchain]
+                self.__chain = [Block(block['previous_block_hash'],
+                                      block["index"], [Transaction(
+                                          tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
+                                          tx["signature"]) for tx in block['data']], block["proof"], block["timestamp"]) for block in blockchain]
                 # NOTE: validate the chain
                 # print(self.__chain)
                 if not self.validate_chain():
@@ -124,6 +126,7 @@ class BlockChain():
             line = blkc.readline()
             # print("Loading open transaction =>", line)
             open_transactions = json.loads(line)
+            # EFFECT: - Transaction record
             self.__open_transactions = [Transaction(
                 tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
                 tx["signature"]) for tx in open_transactions]
@@ -170,6 +173,7 @@ class BlockChain():
             lambda sum, curr: sum + curr[0] if curr != [] else sum, tx_in, 0)
         return tx_in_amount - tx_out_amount
 
+    # EFFECT: - Transaction record
     def add_transaction_from_broadcast(self, sender_wallet: str, recipient_wallet: str, amount: float, timestamp: float, signature: str):
         # Rule:
         #      if signature != None means that the transaction likely from broadcast, so we need to performs the signature
@@ -178,7 +182,7 @@ class BlockChain():
         if amount <= 0:
             print("Invalid amount number")
             return False
-
+        # EFFECT: - Transaction record
         broadcast_transaction = Transaction(
             sender_wallet, recipient_wallet, amount, timestamp, signature)
 
@@ -196,6 +200,7 @@ class BlockChain():
             #!SECTION 1. performs the conflict resource
             return False
         # Rule : check if this broadcast transaction is already in our pool
+        #EFFECT: - Transaction.__eq__
         if any([tx == broadcast_transaction for tx in self.open_transaction]):
             print(
                 "BroadCast Transaction add failed ,this transaction is already in our pool")
@@ -363,6 +368,7 @@ class BlockChain():
             index = int(index)
             proof = int(proof)
             # Rule: preprocess the block payload
+            #EFFECT: - Transaction
             data_json = [Transaction(
                 tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
                 tx["signature"]) for tx in data_json]

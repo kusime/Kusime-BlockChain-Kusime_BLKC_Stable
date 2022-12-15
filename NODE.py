@@ -271,6 +271,7 @@ def broadcast_transaction_handler():
     """
     try:
         transaction_payload = request.get_json()["payload"]
+        #EFFECT: - Transaction record
         sender_wallet = transaction_payload["sender"]
         recipient_wallet = transaction_payload["recipient"]
         amount = float(transaction_payload["amount"])
@@ -286,6 +287,7 @@ def broadcast_transaction_handler():
 
     # Rule - balance checking
     # FIXME - our blockchain might be out of sync with other blockchain
+    # EFFECT: - Transaction record
     broadcast_transaction_status = BLOCK_CHAIN.add_transaction_from_broadcast(
         sender_wallet, recipient_wallet, amount, timestamp, signature)
 
