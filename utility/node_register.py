@@ -30,3 +30,18 @@ def register_node(NODE_MANAGER, node_ip, node_port, node_rsa_pub):
         # if we exit the loop without a break, registration failed
         print("Failed to register the node with the Node Manager")
         return False
+
+
+def notice_death(NODE_MANAGER, NODE_ID, NODE_PRIVATE_KEY, _sign_object):
+    try:
+        # prepare the death node
+        death_payload = {
+            "death_node_id": NODE_ID,
+            "signature": _sign_object(NODE_PRIVATE_KEY, NODE_ID, False)
+        }
+        response = post(
+            f'{NODE_MANAGER}/death', json=death_payload, timeout=2)
+        print(response.text)
+    except:
+        # catch exceptions raised by requests library
+        print("death ok")

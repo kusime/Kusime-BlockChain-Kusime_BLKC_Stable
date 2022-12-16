@@ -415,6 +415,8 @@ class BlockChain():
 
         self.__chain.append(broadcast_block)
         # Rule - clear the open transactions (clear the pending pool)
+        # EFFECT: - since the transaction will be broadcast anyway , so , after one block mime that block ,we should empty our self block chain pending pool
+        self.__open_transactions = []
         self.save_blockchain()
         return broadcast_block
 

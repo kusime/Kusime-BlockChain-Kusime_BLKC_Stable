@@ -6,7 +6,7 @@ spec:
   selector:
     matchLabels:
       app: node
-  replicas: 5
+  replicas: 2
   template:
     metadata:
       labels:
@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: node
-          image: localhost:5000/gradual-node:6000
+          image: localhost:5000/gradual-node:6000-v4-fix-1
           imagePullPolicy: Always
           ports:
             - containerPort: 6000

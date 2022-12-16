@@ -37,7 +37,7 @@ class Ku_RSA:
         return (private_key, public_key)
 
     @staticmethod
-    def _sign_object(private_key: str, SuperOBJ_instance) -> str:
+    def _sign_object(private_key: str, SuperOBJ_instance_Or_String, trigger_convert=True) -> str:
         """
             Rule:
                 Args:
@@ -50,7 +50,11 @@ class Ku_RSA:
         rsa_pri = RSA.import_key(hex2bin(private_key))
         singer = PKCS1_v1_5.new(rsa_pri)
         # prepare the payload
-        object_binary = (SuperOBJ_instance.to_string()).encode("utf-8")
+        if trigger_convert:
+            object_binary = (
+                SuperOBJ_instance_Or_String.to_string()).encode("utf-8")
+        else:
+            object_binary = (str(SuperOBJ_instance_Or_String)).encode("utf-8")
         object_binary = SHA256.new(object_binary)
         # bin
         signature = singer.sign(object_binary)
@@ -58,7 +62,7 @@ class Ku_RSA:
         return bin2hex(signature)
 
     @staticmethod
-    def _validate_object(public_key: str, signature: str, SuperOBJ_instance):
+    def _validate_object(public_key: str, signature: str, SuperOBJ_instance_Or_String, trigger_convert=True):
         """
             Rule:
                 Args:
@@ -71,7 +75,11 @@ class Ku_RSA:
         rsa_pub = RSA.import_key(hex2bin(public_key))
         validator = PKCS1_v1_5.new(rsa_pub)
         # prepare the payload
-        object_binary = (SuperOBJ_instance.to_string()).encode("utf-8")
+        if trigger_convert:
+            object_binary = (
+                SuperOBJ_instance_Or_String.to_string()).encode("utf-8")
+        else:
+            object_binary = (str(SuperOBJ_instance_Or_String)).encode("utf-8")
         object_binary = SHA256.new(object_binary)
         # signature should be bin
         # str - > bin -> bool

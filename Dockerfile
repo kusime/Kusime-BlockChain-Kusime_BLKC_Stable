@@ -15,4 +15,5 @@ WORKDIR /app
 EXPOSE 6000
 
 # Run the Flask app
-CMD ["python","NODE.py"]
+# https://stackoverflow.com/questions/64954213/python-how-to-recieve-sigint-in-docker-to-stop-service
+ENTRYPOINT ["python","NODE.py"]

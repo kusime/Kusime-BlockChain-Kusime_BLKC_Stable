@@ -1,7 +1,9 @@
+import signal
 from DataBase import *
 from flask import Flask, jsonify, request
 # cors fix
 from flask_cors import CORS
+from Ku_Crypto.Ku_RSA import Ku_RSA
 # for broadcast and register
 # prepare the node running state
 from utility.ip import *
@@ -12,7 +14,7 @@ from Wallet import Wallet
 from BlockChain import BlockChain
 from utility.node_broadcast import node_broadcast
 from utility.node_get_network import *
-from utility.node_register import register_node
+from utility.node_register import notice_death, register_node
 #!SECTION prepare the Blockchain
 # NOTE: Registering node REST API here
 app = Flask(__name__)
@@ -356,14 +358,29 @@ NODE_ID = "{}:{}".format(NODE_HOST, NODE_PORT)
 print(NODE_ID)
 # NOTE: Prepare the this node RSA key pair for node communication
 NODE_PRIVATE_KEY, NODE_PUBLIC_KEY = Wallet.generate_wallet()
-# NOTE: Database configuration
 
-if __name__ == '__main__':
+
+def shutdown_handler(signum, frame):
+    print("Shutting down...")
+    #!SECTION when we shutdown the node , we should remove the node from registration
+    notice_death(NODE_MANAGER, NODE_ID, NODE_PRIVATE_KEY, Ku_RSA._sign_object)
+
+
+# NOTE: take care of the Docker termination signal
+signal.signal(signal.SIGTERM, shutdown_handler)
+
+
+def start_up_this_node():
+    # EFFECT: -  only everything is prepared so that we can notice the node manager this node is ready to go..
     if not register_node(NODE_MANAGER, NODE_HOST, NODE_PORT, NODE_PUBLIC_KEY):  # REVIEW - PASSED
         print("Now shutdown this node ...")
         exit(1)
     print("Registering node successfully , now starting the node...")
+    app.run(NODE_HOST, NODE_PORT)
+    exit(1)
 
+
+if __name__ == '__main__':
     # NOTE: Prepare the BlockChain
     BLOCK_CHAIN = BlockChain(NODE_ID)
     # !SECTION starting loading from Local Database
@@ -384,24 +401,30 @@ if __name__ == '__main__':
     active_nodes = get_all_other_active_node(NODE_MANAGER, NODE_ID)
     if len(active_nodes) == 0:
         print("No active nodes.. Now Starting as new node...")
-        app.run(NODE_HOST, NODE_PORT)
-        exit(1)
+        start_up_this_node()
 
     active_nodes_chains = get_other_nodes_info(active_nodes, "chain")
     # Rule - consensus: Longest chain win..
     longest_chain_json = max(active_nodes_chains, key=len)
-    # NOTE - the open transaction not matter ,since the open transaction is just a which pending to the block chain , after mine , the open transaction record in one node will belong to the block ,then send to the other block, os other block will just append that block to it's self blockchain
+    # Rule - just sync the open_transaction
+    active_nodes_open_transaction = get_other_nodes_info(
+        active_nodes, "open_transactions")
+    # Rule - consensus: Longest record win..
+    longest_tran_json = max(active_nodes_open_transaction, key=len)
+    # Note: the open_transactions record should just sync , but not effect the node start_up
+    if not BLOCK_CHAIN.json_to_TRANSACTION(longest_tran_json):
+        # FIXME: this is a unexceptional exception ....... hopefully this will not be triggered ...
+        print("The Longest OpenTransaction in node network have error !!")
+        exit(1)
+
     if len(longest_chain_json) == 1:
         print("The longest chain in the network only have GENESIS_BLOCK,other node is just started , so , we can ok to start a new node")
-        app.run(NODE_HOST, NODE_PORT)
-        exit(1)
+        start_up_this_node()
 
     if not BLOCK_CHAIN.json_to_CHAIN(longest_chain_json):
         # FIXME: this is a unexceptional exception ....... hopefully this will not be triggered ...
         print("The Longest Chain in node network have error !!")
         exit(1)
-
-    print("Loading the Longest Chain in the node network.. Starting node")
-    app.run(NODE_HOST, NODE_PORT)
-    exit(1)
+    print("Loading the Longest Chain in the node network.. Starting node ...")
+    start_up_this_node()
     # TODO - Notice node death..
