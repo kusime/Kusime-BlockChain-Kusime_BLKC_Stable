@@ -1,8 +1,8 @@
+from DataBase import *
 from flask import Flask, jsonify, request
 # cors fix
 from flask_cors import CORS
 # for broadcast and register
-import requests
 # prepare the node running state
 from utility.ip import *
 # parse the request and response
@@ -11,23 +11,12 @@ import json
 from Wallet import Wallet
 from BlockChain import BlockChain
 from utility.node_broadcast import node_broadcast
+from utility.node_get_network import *
 from utility.node_register import register_node
 #!SECTION prepare the Blockchain
-
-# NOTE: when running in k8s deployment mode , this port will be stabilized
-NODE_MANAGER = "http://localhost:6000"
-BROADCAST_MANAGER = "http://localhost:7000"
-# NODE_PORT = 5000
-NODE_PORT = generate_random_port()
-NODE_HOST = get_local_ip_address()
-NODE_ID = "{}:{}".format(NODE_HOST, NODE_PORT)
 # NOTE: Registering node REST API here
 app = Flask(__name__)
 CORS(app)
-# NOTE: Prepare the this node RSA key pair for node communication
-NODE_PRIVATE_KEY, NODE_PUBLIC_KEY = Wallet.generate_wallet()
-# NOTE: Prepare the BlockChain
-BLOCK_CHAIN = BlockChain(NODE_ID)
 
 
 @app.route('/alive', methods=["GET", "POST"])
@@ -53,6 +42,19 @@ def get_chain():  # REVIEW - PASSED
                            for tx in d_block["data"]]
     # return jsonify the chain snapshot
     return jsonify(jsonable_chain), 200
+
+
+@app.route('/get-open_transactions', methods=['GET'])
+def get_open_transactions():  # REVIEW - PASSED
+    """
+    #Rule - :
+        #Rule:
+            1. should provide current node open transactions
+    """
+    trans = BLOCK_CHAIN.open_transaction
+    jsonable_trans = [tx.__dict__.copy()
+                      for tx in trans]
+    return jsonify(jsonable_trans), 200
 
 
 @app.route('/create-wallet', methods=["GET"])
@@ -112,23 +114,6 @@ def get_balance():  # REVIEW - PASSED
     api_return = {
         "message": "get_balance successfully",
         "balance": balance
-    }
-    return jsonify(api_return), 200
-
-
-@app.route('/get-open_transactions', methods=['GET'])
-def get_open_transactions():  # REVIEW - PASSED
-    """
-    #Rule - :
-        #Rule:
-            1. should provide current node open transactions
-    """
-    trans = BLOCK_CHAIN.open_transaction
-    jsonable_trans = [tx.__dict__.copy()
-                      for tx in trans]
-    api_return = {
-        "message": "get_open_transactions successfully",
-        "open_transactions": jsonable_trans
     }
     return jsonify(api_return), 200
 
@@ -271,7 +256,7 @@ def broadcast_transaction_handler():
     """
     try:
         transaction_payload = request.get_json()["payload"]
-        #EFFECT: - Transaction record
+        # EFFECT: - Transaction record
         sender_wallet = transaction_payload["sender"]
         recipient_wallet = transaction_payload["recipient"]
         amount = float(transaction_payload["amount"])
@@ -362,11 +347,61 @@ def broadcast_block_handler():
     return jsonify(api_return), 200
 
 
+# NOTE: when running in k8s deployment mode , this port will be stabilized
+NODE_MANAGER = "http://nodemanager.default.svc.cluster.local:8000"
+BROADCAST_MANAGER = "http://broadcastmanager.default.svc.cluster.local:7000"
+NODE_PORT = 6000
+NODE_HOST = get_local_ip_address()
+NODE_ID = "{}:{}".format(NODE_HOST, NODE_PORT)
+print(NODE_ID)
+# NOTE: Prepare the this node RSA key pair for node communication
+NODE_PRIVATE_KEY, NODE_PUBLIC_KEY = Wallet.generate_wallet()
+# NOTE: Database configuration
+
 if __name__ == '__main__':
     if not register_node(NODE_MANAGER, NODE_HOST, NODE_PORT, NODE_PUBLIC_KEY):  # REVIEW - PASSED
         print("Now shutdown this node ...")
         exit(1)
     print("Registering node successfully , now starting the node...")
+
+    # NOTE: Prepare the BlockChain
+    BLOCK_CHAIN = BlockChain(NODE_ID)
+    # !SECTION starting loading from Local Database
+    try:
+        # BlockChain Loading
+        with open(DATABASE_BLOCKCHAIN, "r") as blck:
+            blck_json = json.loads(blck.read())
+            if not BLOCK_CHAIN.json_to_CHAIN(blck_json):
+                raise Exception("Local DATABASE_BLOCKCHAIN Loading Failed")
+        with open(DATABASE_OPEN_TRANSACTION, "r") as tran:
+            tran = json.loads(blck.read())
+            if not BLOCK_CHAIN.json_to_TRANSACTION(tran):
+                raise Exception("Local DATABASE_BLOCKCHAIN Loading Failed")
+    except:
+        print("Error Loading from Local Storage,now starting the trying node network...")
+        pass
+    # !SECTION starting loading from Node Network
+    active_nodes = get_all_other_active_node(NODE_MANAGER, NODE_ID)
+    if len(active_nodes) == 0:
+        print("No active nodes.. Now Starting as new node...")
+        app.run(NODE_HOST, NODE_PORT)
+        exit(1)
+
+    active_nodes_chains = get_other_nodes_info(active_nodes, "chain")
+    # Rule - consensus: Longest chain win..
+    longest_chain_json = max(active_nodes_chains, key=len)
+    # NOTE - the open transaction not matter ,since the open transaction is just a which pending to the block chain , after mine , the open transaction record in one node will belong to the block ,then send to the other block, os other block will just append that block to it's self blockchain
+    if len(longest_chain_json) == 1:
+        print("The longest chain in the network only have GENESIS_BLOCK,other node is just started , so , we can ok to start a new node")
+        app.run(NODE_HOST, NODE_PORT)
+        exit(1)
+
+    if not BLOCK_CHAIN.json_to_CHAIN(longest_chain_json):
+        # FIXME: this is a unexceptional exception ....... hopefully this will not be triggered ...
+        print("The Longest Chain in node network have error !!")
+        exit(1)
+
+    print("Loading the Longest Chain in the node network.. Starting node")
     app.run(NODE_HOST, NODE_PORT)
-    # Rule: - notice death
-    pass
+    exit(1)
+    # TODO - Notice node death..

@@ -8,6 +8,8 @@ from Block import Block
 from Transaction import Transaction
 # NOTE: Initialize the Blockchain Rule
 from Ku_Rule import *
+# NOTE: Database configuration
+from DataBase import *
 # GENESIS_BLOCK, this block must have the same number of all field so that the hash check will work
 GENESIS_BLOCK = Block("GENESIS_BLOCK", 0, [], 0, 0)
 
@@ -22,9 +24,14 @@ class BlockChain():
         self.__is_initialized = False
         # NOTE - Try Loading the chain
         self.NODE_ID = NODE_ID
-        self.DB_CHAIN = f'{DATABASE_BLOCKCHAIN}|{self.NODE_ID}'
-        self.DB_TRAN = f'{DATABASE_OPEN_TRANSACTION}|{self.NODE_ID}'
-        self.load_blockchain()
+        # NOTE: in k8s , there is no need to separate the database base on the node_id
+        # self.DB_CHAIN = f'{DATABASE_BLOCKCHAIN}|{self.NODE_ID}'
+        # self.DB_TRAN = f'{DATABASE_OPEN_TRANSACTION}|{self.NODE_ID}'
+        self.DB_CHAIN = f'{DATABASE_BLOCKCHAIN}'
+        self.DB_TRAN = f'{DATABASE_OPEN_TRANSACTION}'
+
+        # EFFECT - No longer loading the blockchain during class initialize , since the source might be different
+        # self.load_blockchain()
     # SECTION - Protection of the BlockChain prevent modifications from node directly accessing
 
     @property
@@ -89,50 +96,45 @@ class BlockChain():
             print("Error: Failed to save open_transaction")
     # SECTION - Database Loader section
 
-    def load_blockchain(self):
+    def json_to_CHAIN(self, chain_json):
+        """
+            Chain: Provide json to load,will performs the validation , but will ignore where the json is coming from.
+        """
         try:
-            with open(self.DB_CHAIN, "r") as blkc:
-                blockchain = json.loads(blkc.readline())
-                # EFFECT: - Transaction record
-                # Rule: - Preprocessing the Database Record
-                self.__chain = [Block(block['previous_block_hash'],
-                                      block["index"], [Transaction(
-                                          tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
-                                          tx["signature"]) for tx in block['data']], block["proof"], block["timestamp"]) for block in blockchain]
-                # NOTE: validate the chain
-                # print(self.__chain)
-                if not self.validate_chain():
-                    raise Exception("Invalid Chain")
-                # NOTE: load the open_transaction and performs validation on the open_transaction (Not on Block's validation)
-                self.__load_open_transactions()  # REVIEW - this will reuse the same start up logic
-        except FileNotFoundError:
-            print("No blockchain record found..")
-        except Exception as e:
+            # EFFECT: - Transaction record
+            # Rule: - Preprocessing the Database Record
+            self.__chain = [Block(block['previous_block_hash'],
+                                  block["index"], [Transaction(
+                                      tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
+                                      tx["signature"]) for tx in block['data']], block["proof"], block["timestamp"]) for block in chain_json]
+            # NOTE: validate the chain
+            # print(self.__chain)
+            if not self.validate_chain():
+                raise Exception("Invalid Chain")
+            print("Parsing chain json successfully")
+            return True
+        except:
+            print("Error loading chain")
+            return False
 
-            print(e.args)
-            # NOTE: Information about Node start up error
-            # FIXME: This logic might be improved, which means that is if local record is not validate then we should trigger the node to get blockchain from other node
-            # from os import path, remove
-            # for file in [DATABASE_BLOCKCHAIN, DATABASE_OPEN_TRANSACTION]:
-            #     if path.exists(file):
-            #         remove(file)
-            # print("Removing Invalid Record from Database")
-            raise Exception("InvalidRecord")
-        finally:
-            print("Block loading complete")
-
-    def __load_open_transactions(self):
-        with open(self.DB_TRAN, "r") as blkc:
-            line = blkc.readline()
-            # print("Loading open transaction =>", line)
-            open_transactions = json.loads(line)
+    def json_to_TRANSACTION(self, transaction_json):
+        """
+            Transaction: Provide json to load,will performs the validation , but will ignore where the json is coming from.
+        """
+        try:
             # EFFECT: - Transaction record
             self.__open_transactions = [Transaction(
                 tx["sender"], tx["recipient"], tx["amount"], tx["timestamp"],
-                tx["signature"]) for tx in open_transactions]
+                tx["signature"]) for tx in transaction_json]
             # NOTE: validate the transaction using the self validate
             if not all([tx.validate_self() for tx in self.__open_transactions]):
                 raise Exception("Invalid Open_Transaction Record")
+            print("Parsing open transaction json successfully")
+            return True
+        except:
+            print("Loading Open_Transaction error ")
+            return False
+
     # SECTION - Getter helper methods
 
     def get_the_last_block(self):

@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-deployment
+spec:
+  selector:
+    matchLabels:
+      app: node
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        app: node
+    spec:
+      containers:
+        - name: node
+          image: localhost:5000/gradual-node:6000
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 6000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 50Mi
+            limits:
+              cpu: 200m
+              memory: 200Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 6000
+  selector:
+    app: node
