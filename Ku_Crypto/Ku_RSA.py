@@ -102,20 +102,23 @@ class Ku_RSA:
 
 
 if __name__ == "__main__":
-
     class Test(SuperOBJ):
         def __init__(self):
             self.payload = 1
             self.payload2 = 2
 
-        def to_json(self):
+        def to_string(self):
             # override the to string method
             return str(self.payload) + str(self.payload2)
     private_key, public_key = Ku_RSA._generate_RSA_keys()
-    print(private_key, public_key)
+    private_key1, public_key1 = Ku_RSA._generate_RSA_keys()
+    print(private_key)
+    # FIXME - A bug here , but Don't know how to handle it ...
+    # https://pycryptodome.readthedocs.io/en/latest/src/signature/pkcs1_v1_5.html?highlight=PKCS1_v1_5
+    private_key = private_key[:-3] + '111'
+    print(private_key)
     test = Test()
-    signature = Ku_RSA._sign_object(private_key, test)
-    print(signature)
+    signature = Ku_RSA._sign_object(private_key1, test)
     test.payload = 3  # modifying
     print(Ku_RSA._validate_object(public_key, signature, test))
     test.payload = 1  # change back

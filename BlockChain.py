@@ -305,6 +305,12 @@ class BlockChain():
             print("miner_wallet is required to mine coins")
             return False
 
+        # Rule : can not transfer to self !!
+        if miner_wallet == MINE_SYSTEM_PUBLIC_KEY:
+            # have no wallet connected
+            print("miner_wallet is equal to MINE_SYSTEM_PUBLIC_KEY")
+            return False
+
         if not Wallet.validate_wallet_keys(miner_wallet):
             print("miner_wallet is invalid")
             return False
