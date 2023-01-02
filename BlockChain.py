@@ -148,34 +148,26 @@ class BlockChain():
         if not Wallet.validate_wallet_keys(wallet_address):
             print("Invalid wallet address: {}".format(wallet_address))
             return None
-        #####!SECTION sender wallet output #################################
-        # Rule - get all amount which are send from this account #NOTE - from the blockchain
-        tx_out = [[tx.amount for tx in block.data
-                   if tx.sender == wallet_address] for block in self.__chain]
-        # Rule - get all amount which are send from this account #NOTE - from the open_transaction
-        tx_out_open_transaction = [[tx.amount]
-                                   for tx in self.__open_transactions if tx.sender == wallet_address]
-        # [[],[2],[]] + [[],[1],[]]  => [ [],[2],[],[],[1],[]]
-        tx_out += tx_out_open_transaction
-        #####!SECTION sender wallet output #################################
-        tx_out_amount = functools.reduce(
-            lambda sum, curr: sum + curr[0] if curr != [] else sum, tx_out, 0)
-        #####!SECTION sender wallet input #################################
-        # Rule - get all amount which are send from this account #NOTE - from the blockchain
-        tx_in = [[tx.amount for tx in block.data
-                  if tx.recipient == wallet_address] for block in self.__chain]
-        # Rule - get all amount which are send from this account #NOTE - from the open_transaction
-        tx_in_open_transaction = [[tx.amount]
-                                  for tx in self.__open_transactions if tx.recipient == wallet_address]
-        # [[],[2],[]] + [[],[1],[]]  => [ [],[2],[],[],[1],[]]
-        tx_in += tx_in_open_transaction
-        # print(tx_in)
-        #####!SECTION sender wallet input #################################
-        tx_in_amount = functools.reduce(
-            lambda sum, curr: sum + curr[0] if curr != [] else sum, tx_in, 0)
-        return tx_in_amount - tx_out_amount
+        wallet_received = 0
+        wallet_send = 0
+        # loop though the chain
+        for block in self.__chain:
+            if len(block.data) != 0:
+                for tran in block.data:
+                    if tran.sender == wallet_address:
+                        wallet_send += tran.amount
+                    if tran.recipient == wallet_address:
+                        wallet_received += tran.amount
+
+        for tran in self.__open_transactions:
+            if tran.sender == wallet_address:
+                wallet_send += tran.amount
+            if tran.recipient == wallet_address:
+                wallet_received += tran.amount
+        return wallet_received - wallet_send
 
     # EFFECT: - Transaction record
+
     def add_transaction_from_broadcast(self, sender_wallet: str, recipient_wallet: str, amount: float, timestamp: float, signature: str):
         # Rule:
         #      if signature != None means that the transaction likely from broadcast, so we need to performs the signature
@@ -424,6 +416,7 @@ class BlockChain():
         # EFFECT: - since the transaction will be broadcast anyway , so , after one block mime that block ,we should empty our self block chain pending pool
         self.__open_transactions = []
         self.save_blockchain()
+        self.save_open_transaction()
         return broadcast_block
 
     # SECTION - validate the chain logic

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: node
-          image: localhost:5000/gradual-node:6000-stable-fixed
+          image: localhost:5000/gradual-node:6000-stable-fixed-3
           imagePullPolicy: Always
           ports:
             - containerPort: 6000
@@ -31,7 +31,7 @@ kind: Service
 metadata:
   name: node
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     - port: 6000
   selector:
